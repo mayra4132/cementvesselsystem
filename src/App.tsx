@@ -15,14 +15,32 @@ import { Payments } from './pages/Payments';
 import { AlertsPage } from './pages/AlertsPage';
 import { Reports, History } from './pages/Reports';
 import { Admin } from './pages/Admin';
+import { Login } from './pages/Login';
 import { AiAssistantModal } from './components/AiAssistantModal';
+import { AuthProvider, useAuth } from './auth/AuthContext';
 
-export function App() {
+function AppContent() {
   const { alerts, api, connectionInfo } = useAppData();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [currentPage, setCurrentPage] = useState<NavPageId>('dashboard-summary');
   const [selectedVesselId, setSelectedVesselId] = useState<string>('v-01');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+
+  // Loading indicator while reading storage token
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F7F5F0] flex flex-col items-center justify-center text-[#14181A] font-mono text-xs gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-[#0A7A3D] border-t-transparent animate-spin" />
+        <div>Verifying VIGOR Corporate Session...</div>
+      </div>
+    );
+  }
+
+  // If not authenticated, render corporate login
+  if (!isAuthenticated) {
+    return <Login />;
+  }
 
   // Navigate to single vessel
   const handleSelectVessel = (vesselId: string) => {
@@ -185,11 +203,26 @@ export function App() {
       <AiAssistantModal
         isOpen={isAssistantOpen}
         onClose={() => setIsAssistantOpen(false)}
+        onNavigate={(pageId, vesselId) => {
+          if (vesselId) {
+            handleSelectVessel(vesselId);
+          } else {
+            setCurrentPage(pageId as any);
+          }
+        }}
         onNavigateToPayments={() => setCurrentPage('payments')}
         onNavigateToBerths={() => setCurrentPage('berths')}
         onSelectVessel={handleSelectVessel}
       />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

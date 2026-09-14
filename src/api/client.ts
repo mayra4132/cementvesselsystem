@@ -76,6 +76,14 @@ export async function apiFetch<T>(
     headers.set('Accept', 'application/json');
   }
 
+  // Automatically attach auth token if available
+  try {
+    const token = localStorage.getItem('vigor_auth_token') || sessionStorage.getItem('vigor_auth_token');
+    if (token && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+  } catch {}
+
   let response: Response;
   try {
     response = await fetch(url, {

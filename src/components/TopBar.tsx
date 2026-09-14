@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useLiveClock } from '../hooks/useAppData';
-import { Bell, RefreshCw, Menu, Wifi, WifiOff, Database, Server, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Bell, RefreshCw, Menu, Wifi, WifiOff, Database, Server, CheckCircle2, AlertTriangle, ExternalLink, LogOut, Shield } from 'lucide-react';
 import { Alert } from '../types';
 import { ConnectionInfo, API_BASE_URL } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 
 interface TopBarProps {
   currentPageTitle: string;
@@ -27,6 +28,7 @@ export function TopBar({
   onNavigateToAdmin,
   onTestConnection,
 }: TopBarProps) {
+  const { user, logout } = useAuth();
   const { eatTime } = useLiveClock();
   const unreadAlerts = alerts.filter((a) => !a.acknowledged);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -166,15 +168,62 @@ export function TopBar({
               )}
             </button>
 
-            {/* User Avatar */}
-            <div className="flex items-center gap-1.5 pl-2 border-l border-[#E1DED4]">
-              <div className="w-7 h-7 rounded-full bg-[#14181A] text-white flex items-center justify-center text-[10px] font-mono font-bold tracking-wider">
-                OM
+            {/* Authenticated Corporate User */}
+            <div className="flex items-center gap-2 pl-2 border-l border-[#E1DED4]">
+              <div
+                className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-[10px] font-mono font-bold tracking-wider ${
+                  user?.role === 'Admin'
+                    ? 'bg-[#5B37B7]'
+                    : user?.role === 'Management'
+                    ? 'bg-[#0F62FE]'
+                    : user?.role === 'Operations'
+                    ? 'bg-[#0A7A3D]'
+                    : 'bg-[#5A6764]'
+                }`}
+                title={`${user?.fullName || 'Staff'} (${user?.role || 'Guest'})`}
+              >
+                {user?.fullName
+                  ? user.fullName
+                      .split(' ')
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase()
+                  : 'TG'}
               </div>
               <div className="hidden xl:block text-left leading-tight">
-                <div className="text-xs font-bold text-[#14181A]">Operations Mgr</div>
-                <div className="text-[10px] text-[#3F4A47]">Zanzibar Port HQ</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-[#14181A] truncate max-w-[120px]">
+                    {user?.fullName || 'Turkys Staff'}
+                  </span>
+                  <span
+                    className={`text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold ${
+                      user?.role === 'Admin'
+                        ? 'bg-[#F2EDFD] text-[#5B37B7]'
+                        : user?.role === 'Management'
+                        ? 'bg-[#EBF2FF] text-[#0F62FE]'
+                        : user?.role === 'Operations'
+                        ? 'bg-[#E7F4EB] text-[#0A7A3D]'
+                        : 'bg-[#F7F5F0] text-[#5A6764]'
+                    }`}
+                  >
+                    {user?.role || 'Viewer'}
+                  </span>
+                </div>
+                <div className="text-[10px] text-[#5A6764] truncate max-w-[150px]">
+                  {user?.department || 'Turkys Group'}
+                </div>
               </div>
+
+              {/* Sign out button */}
+              <button
+                type="button"
+                onClick={logout}
+                title="Sign out of Turkys Group system"
+                className="p-1.5 text-[#5A6764] hover:text-[#AE3B2E] hover:bg-[#FCEBEA] rounded-md transition cursor-pointer ml-1"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         </div>
