@@ -22,7 +22,6 @@ export function Admin() {
 
   const [bufferHours, setBufferHours] = useState(String(systemSettings.postUnloadBerthBufferHours));
   const [paymentThreshold, setPaymentThreshold] = useState(String(systemSettings.paymentEligibilityThresholdPercent));
-  const [refreshInterval, setRefreshInterval] = useState(String(systemSettings.trackingRefreshIntervalSeconds));
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   // Backend test & sync states
@@ -36,7 +35,6 @@ export function Admin() {
     api.updateSystemSettings({
       postUnloadBerthBufferHours: Number(bufferHours) || 1.5,
       paymentEligibilityThresholdPercent: Number(paymentThreshold) || 100,
-      trackingRefreshIntervalSeconds: Number(refreshInterval) || 300,
     });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
@@ -307,23 +305,6 @@ export function Admin() {
                 />
                 <span className="text-[#3F4A47]">
                   Percentage of advance commercial invoice required cleared in treasury before manufacturer confirms loading slot (Default: 100%).
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-semibold text-[#14181A] mb-1">
-                Live AIS Telemetry Polling Rate (Seconds)
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  value={refreshInterval}
-                  onChange={(e) => setRefreshInterval(e.target.value)}
-                  className="w-32 p-2 bg-[#F7F5F0] border border-[#E1DED4] rounded-lg font-mono font-bold"
-                />
-                <span className="text-[#3F4A47]">
-                  Interval between vessel GPS position updates before telemetry is flagged as stale.
                 </span>
               </div>
             </div>

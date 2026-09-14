@@ -1,11 +1,11 @@
 import React from 'react';
 import {
+  Gauge,
   LayoutDashboard,
   Activity,
   Ship,
   Anchor,
   Route,
-  MapPinned,
   Factory,
   Fuel,
   CreditCard,
@@ -18,13 +18,13 @@ import {
 import { Alert } from '../types';
 
 export type NavPageId =
+  | 'dashboard-summary'
   | 'dashboard'
   | 'control-tower'
   | 'vessels'
   | 'vessel-detail'
   | 'berths'
   | 'voyages'
-  | 'tracking'
   | 'manufacturer-queue'
   | 'fuel'
   | 'payments'
@@ -64,6 +64,7 @@ export function Sidebar({
     {
       title: 'OVERVIEW',
       items: [
+        { id: 'dashboard-summary', label: 'Dashboard Summary', icon: <Gauge className="w-4 h-4" /> },
         { id: 'dashboard', label: 'Operations Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
         { id: 'control-tower', label: 'Control Tower', icon: <Activity className="w-4 h-4" /> },
       ],
@@ -74,7 +75,6 @@ export function Sidebar({
         { id: 'vessels', label: 'Vessels', icon: <Ship className="w-4 h-4" /> },
         { id: 'berths', label: 'VIGOR Berth', icon: <Anchor className="w-4 h-4" /> },
         { id: 'voyages', label: 'Voyages', icon: <Route className="w-4 h-4" /> },
-        { id: 'tracking', label: 'Live Tracking', icon: <MapPinned className="w-4 h-4" /> },
         { id: 'manufacturer-queue', label: 'Manufacturer Queue', icon: <Factory className="w-4 h-4" /> },
         { id: 'fuel', label: 'Fuel / Oil', icon: <Fuel className="w-4 h-4" /> },
       ],

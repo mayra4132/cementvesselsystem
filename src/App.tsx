@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useAppData } from './hooks/useAppData';
 import { Sidebar, NavPageId } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
+import { DashboardSummary } from './pages/DashboardSummary';
 import { Dashboard } from './pages/Dashboard';
 import { ControlTower } from './pages/ControlTower';
 import { Vessels } from './pages/Vessels';
 import { VesselDetail } from './pages/VesselDetail';
 import { Berths } from './pages/Berths';
 import { Voyages } from './pages/Voyages';
-import { Tracking } from './pages/Tracking';
 import { ManufacturerQueue } from './pages/ManufacturerQueue';
 import { Fuel } from './pages/Fuel';
 import { Payments } from './pages/Payments';
@@ -19,7 +19,7 @@ import { AiAssistantModal } from './components/AiAssistantModal';
 
 export function App() {
   const { alerts, api, connectionInfo } = useAppData();
-  const [currentPage, setCurrentPage] = useState<NavPageId>('dashboard');
+  const [currentPage, setCurrentPage] = useState<NavPageId>('dashboard-summary');
   const [selectedVesselId, setSelectedVesselId] = useState<string>('v-01');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -32,6 +32,8 @@ export function App() {
 
   const getPageTitle = (): string => {
     switch (currentPage) {
+      case 'dashboard-summary':
+        return 'Dashboard Summary';
       case 'dashboard':
         return 'Operations Dashboard';
       case 'control-tower':
@@ -44,8 +46,6 @@ export function App() {
         return 'VIGOR Berth Operations';
       case 'voyages':
         return 'Voyage Rotations';
-      case 'tracking':
-        return 'Live Vessel Tracking';
       case 'manufacturer-queue':
         return 'Manufacturer Queue & Loading Slots';
       case 'fuel':
@@ -92,7 +92,23 @@ export function App() {
         />
 
         {/* Page Content Viewport */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1400px] w-full mx-auto">
+        <main
+          className={
+            currentPage === 'dashboard-summary'
+              ? 'flex-1 px-6 py-4 sm:px-8 sm:py-5 w-full max-w-[1560px] mx-auto flex flex-col justify-start min-h-0'
+              : 'flex-1 p-4 sm:p-6 lg:p-8 max-w-[1400px] w-full mx-auto'
+          }
+        >
+          {currentPage === 'dashboard-summary' && (
+            <DashboardSummary
+              onSelectVessel={handleSelectVessel}
+              onNavigateToBerths={() => setCurrentPage('berths')}
+              onNavigateToPayments={() => setCurrentPage('payments')}
+              onNavigateToAlerts={() => setCurrentPage('alerts')}
+              onNavigateToControlTower={() => setCurrentPage('control-tower')}
+            />
+          )}
+
           {currentPage === 'dashboard' && (
             <Dashboard
               onSelectVessel={handleSelectVessel}
@@ -129,10 +145,6 @@ export function App() {
 
           {currentPage === 'voyages' && (
             <Voyages onSelectVessel={handleSelectVessel} />
-          )}
-
-          {currentPage === 'tracking' && (
-            <Tracking onSelectVessel={handleSelectVessel} />
           )}
 
           {currentPage === 'manufacturer-queue' && (

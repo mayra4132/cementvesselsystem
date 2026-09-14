@@ -45,7 +45,7 @@ export function AiAssistantModal({
     'Summarize current fleet cycle status for management.',
   ];
 
-  const handleSend = (textToSend?: string) => {
+  const handleSend = async (textToSend?: string) => {
     const q = textToSend || input;
     if (!q.trim()) return;
 
@@ -53,38 +53,66 @@ export function AiAssistantModal({
     setMessages((prev) => [...prev, userMsg]);
     if (!textToSend) setInput('');
 
-    // Generate smart context-aware operational response
-    setTimeout(() => {
-      let reply = '';
-      let actions: { label: string; onClick: () => void }[] | undefined = undefined;
+    let reply = '';
+    let actions: { label: string; onClick: () => void }[] | undefined = undefined;
 
-      const lower = q.toLowerCase();
+    const lower = q.toLowerCase();
+    if (lower.includes('vigor 03') || lower.includes('berth conflict') || lower.includes('delayed')) {
+      actions = [
+        { label: 'Open Berth B01 Console', onClick: () => { onClose(); onNavigateToBerths(); } },
+        { label: 'Inspect MV VIGOR 03', onClick: () => { onClose(); onSelectVessel('v-03'); } },
+      ];
+    } else if (lower.includes('tanga') || lower.includes('payment') || lower.includes('wire')) {
+      actions = [
+        { label: 'Record Wire Payment', onClick: () => { onClose(); onNavigateToPayments(); } },
+      ];
+    } else if (lower.includes('eliminate') || lower.includes('solve') || lower.includes('speed')) {
+      actions = [
+        { label: 'View Scenario Controls in Admin', onClick: () => { onClose(); } },
+      ];
+    } else {
+      actions = [
+        { label: 'Open Control Tower', onClick: () => { onClose(); } },
+      ];
+    }
 
+    try {
+      const res = await fetch('/api/v1/ai/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: q,
+          context: {
+            vigor01_status: 'Discharging at B01',
+            vigor01_expected_release: v1?.expectedBerthRelease,
+            vigor03_return_eta: v3?.returnEtaForecast,
+            vigor03_anchorage_wait_hours: v3?.predictedAnchorageWaitHours,
+          },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.answer) {
+          reply = data.answer;
+        }
+      }
+    } catch {
+      // Fallback to local heuristic
+    }
+
+    if (!reply) {
       if (lower.includes('vigor 03') || lower.includes('berth conflict') || lower.includes('delayed')) {
         reply = `**Berth B01 Conflict Analysis for MV VIGOR 03:**\n\n• MV VIGOR 03 is forecast to arrive at Zanzibar waters at **${formatTime(v3?.returnEtaForecast)}**.\n• However, Berth B01 is currently occupied by MV VIGOR 01, which will not clear until **${formatTime(v1?.expectedBerthRelease)}** (factoring in the 1.5-hour pneumatic line purge).\n• Result: MV VIGOR 03 faces an anticipated **${formatHoursAndMinutes(v3?.predictedAnchorageWaitHours || 2.7)}** wait at anchorage Charlie.\n\n**Recommended Action:** Option A (Eco-Steaming) — instruct MV VIGOR 03 to reduce speed from 11.2 to 8.5 knots to save 1.8T bunker fuel and arrive synchronously.`;
-        actions = [
-          { label: 'Open Berth B01 Console', onClick: () => { onClose(); onNavigateToBerths(); } },
-          { label: 'Inspect MV VIGOR 03', onClick: () => { onClose(); onSelectVessel('v-03'); } },
-        ];
       } else if (lower.includes('tanga') || lower.includes('payment') || lower.includes('wire')) {
         reply = `**Tanga Cement Payment Gate Status:**\n\n• Invoice total: TZS 500,000,000.\n• Currently cleared: TZS 300,000,000 (60%).\n• **Remaining balance due: TZS 200,000,000** before tomorrow 17:00 EAT.\n• Because payment is under the 100% threshold, Tanga Cement has **withheld confirmed slot scheduling** for MV VIGOR 01. Once the wire transaction is cleared, the system will instantly flag eligibility as confirmed.`;
-        actions = [
-          { label: 'Record Wire Payment', onClick: () => { onClose(); onNavigateToPayments(); } },
-        ];
       } else if (lower.includes('eliminate') || lower.includes('solve') || lower.includes('speed')) {
         reply = `**Two primary operational solutions exist:**\n\n1. **Eco-Steaming**: Reduce MV VIGOR 03 speed from 11.2 kts to 8.5 kts. Arrival pushes to ${formatTime(v1?.expectedBerthRelease)}, saving ~$1,200 in fuel.\n2. **Unloading Booster**: Increase MV VIGOR 01 compressor pressure on Silo Line 2 from 605 t/h to 660 t/h to advance berth clearance by 35 minutes.`;
-        actions = [
-          { label: 'View Scenario Controls in Admin', onClick: () => { onClose(); } },
-        ];
       } else {
         reply = `**Fleet Operations Summary:**\n• **MV VIGOR 01**: Discharging at B01 (72% unloaded, rate 605 t/h). Release forecast: **${formatTime(v1?.expectedBerthRelease)}**.\n• **MV VIGOR 02**: Northbound in Pemba Channel at 10.8 kts. ETA Tanga tomorrow morning. 100% paid.\n• **MV VIGOR 03**: Southbound returning to Zanzibar laden with 9,400T cement. Berth conflict detected (+${formatHoursAndMinutes(v3?.predictedAnchorageWaitHours || 2.7)} anchorage wait).`;
-        actions = [
-          { label: 'Open Control Tower', onClick: () => { onClose(); } },
-        ];
       }
+    }
 
-      setMessages((prev) => [...prev, { sender: 'ASSISTANT', text: reply, actions }]);
-    }, 500);
+    setMessages((prev) => [...prev, { sender: 'ASSISTANT', text: reply, actions }]);
   };
 
   return (
