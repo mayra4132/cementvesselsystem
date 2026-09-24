@@ -243,4 +243,101 @@ CREATE TABLE `system_settings` (
   PRIMARY KEY (`setting_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- -----------------------------------------------------------------------------
+-- 12. VESSEL ACTIVITIES (Operational Workflow Engine)
+-- -----------------------------------------------------------------------------
+DROP TABLE IF EXISTS `activity_dependencies`;
+DROP TABLE IF EXISTS `vessel_activity_events`;
+DROP TABLE IF EXISTS `vessel_activities`;
+
+CREATE TABLE `vessel_activities` (
+  `id` VARCHAR(36) NOT NULL,
+  `vessel_id` VARCHAR(36) NOT NULL,
+  `voyage_id` VARCHAR(36) NULL,
+  `visit_id` VARCHAR(36) NULL,
+  `berth_id` VARCHAR(36) NULL,
+  `activity_type` VARCHAR(80) NOT NULL,
+  `title` VARCHAR(160) NOT NULL,
+  `description` TEXT NULL,
+  `execution_mode` ENUM('PRIMARY','SUPPORT') NOT NULL,
+  `status` ENUM(
+    'PLANNED',
+    'READY',
+    'IN_PROGRESS',
+    'STOPPED',
+    'BLOCKED',
+    'COMPLETED',
+    'CANCELLED',
+    'SKIPPED'
+  ) NOT NULL,
+  `sequence_no` INT NOT NULL,
+  `priority` ENUM('LOW','NORMAL','HIGH','CRITICAL') NOT NULL DEFAULT 'NORMAL',
+  `location` VARCHAR(160) NULL,
+  `planned_start` TIMESTAMP NULL,
+  `planned_end` TIMESTAMP NULL,
+  `forecast_start` TIMESTAMP NULL,
+  `forecast_end` TIMESTAMP NULL,
+  `actual_start` TIMESTAMP NULL,
+  `actual_end` TIMESTAMP NULL,
+  `stopped_at` TIMESTAMP NULL,
+  `estimated_duration_minutes` INT NULL,
+  `progress_pct` DECIMAL(5,2) NULL,
+  `blocks_next` TINYINT(1) NOT NULL DEFAULT 1,
+  `linked_entity_type` VARCHAR(60) NULL,
+  `linked_entity_id` VARCHAR(36) NULL,
+  `stop_reason` TEXT NULL,
+  `cancellation_reason` TEXT NULL,
+  `completion_notes` TEXT NULL,
+  `created_by` VARCHAR(36) NULL,
+  `updated_by` VARCHAR(36) NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_vessel_activities_vessel` (`vessel_id`),
+  INDEX `idx_vessel_activities_voyage` (`voyage_id`),
+  INDEX `idx_vessel_activities_status` (`status`),
+  INDEX `idx_vessel_activities_seq` (`sequence_no`),
+  INDEX `idx_vessel_activities_planned_start` (`planned_start`),
+  CONSTRAINT `fk_activities_vessel` FOREIGN KEY (`vessel_id`) REFERENCES `vessels` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
+-- 13. ACTIVITY DEPENDENCIES
+-- -----------------------------------------------------------------------------
+CREATE TABLE `activity_dependencies` (
+  `id` VARCHAR(36) NOT NULL,
+  `activity_id` VARCHAR(36) NOT NULL,
+  `depends_on_activity_id` VARCHAR(36) NOT NULL,
+  `required_status` VARCHAR(50) NOT NULL DEFAULT 'COMPLETED',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_dep_activity` (`activity_id`),
+  INDEX `idx_dep_depends_on` (`depends_on_activity_id`),
+  CONSTRAINT `fk_dep_activity` FOREIGN KEY (`activity_id`) REFERENCES `vessel_activities` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_dep_depends_on` FOREIGN KEY (`depends_on_activity_id`) REFERENCES `vessel_activities` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
+-- 14. VESSEL ACTIVITY EVENTS (Activity Operational Audit & History)
+-- -----------------------------------------------------------------------------
+CREATE TABLE `vessel_activity_events` (
+  `id` VARCHAR(36) NOT NULL,
+  `activity_id` VARCHAR(36) NOT NULL,
+  `vessel_id` VARCHAR(36) NOT NULL,
+  `voyage_id` VARCHAR(36) NULL,
+  `event_type` VARCHAR(60) NOT NULL,
+  `previous_status` VARCHAR(50) NULL,
+  `new_status` VARCHAR(50) NOT NULL,
+  `reason` TEXT NULL,
+  `notes` TEXT NULL,
+  `performed_by` VARCHAR(150) NULL,
+  `occurred_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_events_activity` (`activity_id`),
+  INDEX `idx_events_vessel` (`vessel_id`),
+  INDEX `idx_events_occurred` (`occurred_at`),
+  CONSTRAINT `fk_events_activity` FOREIGN KEY (`activity_id`) REFERENCES `vessel_activities` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_events_vessel` FOREIGN KEY (`vessel_id`) REFERENCES `vessels` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

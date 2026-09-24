@@ -67,3 +67,57 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`, `u
 ('payment_eligibility_threshold_percent', '100', 'Percentage of advance payment required before berth slot confirmation', 'admin@turkysgroup.co.tz'),
 ('company_email_domain', 'turkysgroup.co.tz', 'Exclusive allowed email domain for authentication and user access', 'admin@turkysgroup.co.tz'),
 ('port_timezone', 'Africa/Dar_es_Salaam', 'Operational timezone (East Africa Time)', 'admin@turkysgroup.co.tz');
+
+-- 10. VESSEL ACTIVITIES (Operational Workflow Seed)
+-- MV VIGOR 01 Cycle (Unloading In Progress at B01)
+INSERT INTO `vessel_activities` (`id`, `vessel_id`, `voyage_id`, `visit_id`, `berth_id`, `activity_type`, `title`, `description`, `execution_mode`, `status`, `sequence_no`, `priority`, `location`, `planned_start`, `planned_end`, `forecast_start`, `forecast_end`, `actual_start`, `actual_end`, `stopped_at`, `estimated_duration_minutes`, `progress_pct`, `blocks_next`, `stop_reason`, `cancellation_reason`, `created_by`) VALUES
+('act-v01-01', 'v-01', 'voy-01', 'voy-01', 'B01', 'VIGOR_BERTHING', 'Berthing at VIGOR B01', 'Mooring and securing at VIGOR Cement Berth', 'PRIMARY', 'COMPLETED', 1, 'NORMAL', 'Berth B01 · Zanzibar', DATE_SUB(NOW(), INTERVAL 12 HOUR), DATE_SUB(NOW(), INTERVAL 10 HOUR), DATE_SUB(NOW(), INTERVAL 12 HOUR), DATE_SUB(NOW(), INTERVAL 10 HOUR), DATE_SUB(NOW(), INTERVAL 12 HOUR), DATE_SUB(NOW(), INTERVAL 10 HOUR), NULL, 120, 100.00, 1, NULL, NULL, 'usr-003'),
+('act-v01-02', 'v-01', 'voy-01', 'voy-01', 'B01', 'VIGOR_UNLOADING', 'Unloading Bulk Cement', 'High-pressure pneumatic cement discharge into Silo 1 & 2', 'PRIMARY', 'IN_PROGRESS', 2, 'CRITICAL', 'Berth B01 · Zanzibar', DATE_SUB(NOW(), INTERVAL 10 HOUR), DATE_ADD(NOW(), INTERVAL 4 HOUR 50 MINUTE), DATE_SUB(NOW(), INTERVAL 10 HOUR), DATE_ADD(NOW(), INTERVAL 4 HOUR 50 MINUTE), DATE_SUB(NOW(), INTERVAL 10 HOUR), NULL, NULL, 890, 72.00, 1, NULL, NULL, 'usr-003'),
+('act-v01-03', 'v-01', 'voy-01', 'voy-01', 'B01', 'FUEL', 'Fuel / Bunkering', 'MGO Bunkering replenishment via coastal fuel barge', 'PRIMARY', 'PLANNED', 3, 'HIGH', 'Berth B01 · Zanzibar', DATE_ADD(NOW(), INTERVAL 5 HOUR), DATE_ADD(NOW(), INTERVAL 7 HOUR), DATE_ADD(NOW(), INTERVAL 5 HOUR), DATE_ADD(NOW(), INTERVAL 7 HOUR), NULL, NULL, NULL, 120, 0.00, 1, NULL, NULL, 'usr-003'),
+('act-v01-04', 'v-01', 'voy-01', NULL, NULL, 'OUTBOUND_VOYAGE', 'Sailing to Manufacturer', 'Outbound passage through Pemba Channel to Tanga Port', 'PRIMARY', 'PLANNED', 4, 'NORMAL', 'Zanzibar → Tanga Channel', DATE_ADD(NOW(), INTERVAL 8 HOUR), DATE_ADD(NOW(), INTERVAL 18 HOUR), DATE_ADD(NOW(), INTERVAL 8 HOUR), DATE_ADD(NOW(), INTERVAL 18 HOUR), NULL, NULL, NULL, 600, 0.00, 1, NULL, NULL, 'usr-003'),
+('act-v01-05', 'v-01', 'voy-01', NULL, NULL, 'MANUFACTURER_QUEUE', 'Manufacturer Queue & Berthing', 'Queueing for dedicated loading berth at Tanga Cement', 'PRIMARY', 'BLOCKED', 5, 'HIGH', 'Tanga Cement Quay', DATE_ADD(NOW(), INTERVAL 18 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 20 HOUR), DATE_ADD(NOW(), INTERVAL 18 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 20 HOUR), NULL, NULL, NULL, 90, 0.00, 1, NULL, NULL, 'usr-003'),
+('act-v01-06', 'v-01', 'voy-01', NULL, NULL, 'MANUFACTURER_LOADING', 'Loading Cement at Tanga', 'Bulk cement loading into vessel cargo holds', 'PRIMARY', 'BLOCKED', 6, 'NORMAL', 'Tanga Cement Berth 2', DATE_ADD(NOW(), INTERVAL 20 HOUR), DATE_ADD(NOW(), INTERVAL 36 HOUR), DATE_ADD(NOW(), INTERVAL 20 HOUR), DATE_ADD(NOW(), INTERVAL 36 HOUR), NULL, NULL, NULL, 960, 0.00, 1, NULL, NULL, 'usr-003'),
+('act-v01-07', 'v-01', 'voy-01', NULL, NULL, 'MANUFACTURER_PAYMENT', 'Manufacturer Advance Payment', 'CRDB Bank wire transfer for 100% advance loading allocation (TZS 200M pending)', 'SUPPORT', 'IN_PROGRESS', 101, 'HIGH', 'Commercial Finance Gateway', DATE_SUB(NOW(), INTERVAL 24 HOUR), DATE_ADD(NOW(), INTERVAL 12 HOUR), DATE_SUB(NOW(), INTERVAL 24 HOUR), DATE_ADD(NOW(), INTERVAL 12 HOUR), DATE_SUB(NOW(), INTERVAL 24 HOUR), NULL, NULL, 2160, 60.00, 0, NULL, NULL, 'usr-001'),
+
+-- MV VIGOR 02 Cycle (Sailing to Manufacturer, Payment Completed, Queue Ready)
+('act-v02-01', 'v-02', 'voy-02', NULL, NULL, 'OUTBOUND_VOYAGE', 'Sailing to Manufacturer', 'Passage to Tanga Cement terminal', 'PRIMARY', 'IN_PROGRESS', 1, 'NORMAL', 'Pemba Channel (Northbound)', DATE_SUB(NOW(), INTERVAL 4 HOUR), DATE_ADD(NOW(), INTERVAL 6 HOUR), DATE_SUB(NOW(), INTERVAL 4 HOUR), DATE_ADD(NOW(), INTERVAL 6 HOUR), DATE_SUB(NOW(), INTERVAL 4 HOUR), NULL, NULL, 600, 40.00, 1, NULL, NULL, 'usr-003'),
+('act-v02-02', 'v-02', 'voy-02', NULL, NULL, 'MANUFACTURER_QUEUE', 'Manufacturer Queueing', 'Awaiting assigned loading slot confirmation', 'PRIMARY', 'READY', 2, 'NORMAL', 'Tanga Anchorage / Quay', DATE_ADD(NOW(), INTERVAL 6 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 8 HOUR), DATE_ADD(NOW(), INTERVAL 6 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 8 HOUR), NULL, NULL, NULL, 90, 0.00, 1, NULL, NULL, 'usr-003'),
+('act-v02-03', 'v-02', 'voy-02', NULL, NULL, 'MANUFACTURER_LOADING', 'Loading Bulk Cement', 'Loading 10,200T bulk cement at Tanga', 'PRIMARY', 'PLANNED', 3, 'NORMAL', 'Tanga Cement Quay', DATE_ADD(NOW(), INTERVAL 8 HOUR), DATE_ADD(NOW(), INTERVAL 24 HOUR), DATE_ADD(NOW(), INTERVAL 8 HOUR), DATE_ADD(NOW(), INTERVAL 24 HOUR), NULL, NULL, NULL, 960, 0.00, 1, NULL, NULL, 'usr-003'),
+('act-v02-04', 'v-02', 'voy-02', NULL, NULL, 'MANUFACTURER_PAYMENT', 'Manufacturer Advance Payment', '100% full advance payment settled (TZS 520M cleared)', 'SUPPORT', 'COMPLETED', 101, 'NORMAL', 'CRDB Bank Wire', DATE_SUB(NOW(), INTERVAL 24 HOUR), DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_SUB(NOW(), INTERVAL 24 HOUR), DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_SUB(NOW(), INTERVAL 24 HOUR), DATE_SUB(NOW(), INTERVAL 2 HOUR), NULL, 1320, 100.00, 0, NULL, NULL, 'usr-001'),
+
+-- MV VIGOR 03 Cycle (Sailing to VIGOR with Berth B01 Conflict)
+('act-v03-01', 'v-03', 'voy-03', NULL, NULL, 'RETURN_VOYAGE', 'Sailing to VIGOR', 'Southbound passage with 9,800T bulk cement cargo', 'PRIMARY', 'IN_PROGRESS', 1, 'HIGH', 'Tanga → Zanzibar Coastal Route', DATE_SUB(NOW(), INTERVAL 6 HOUR), DATE_ADD(NOW(), INTERVAL 3 HOUR 45 MINUTE), DATE_SUB(NOW(), INTERVAL 6 HOUR), DATE_ADD(NOW(), INTERVAL 3 HOUR 45 MINUTE), DATE_SUB(NOW(), INTERVAL 6 HOUR), NULL, NULL, 585, 62.00, 1, NULL, NULL, 'usr-003'),
+('act-v03-02', 'v-03', 'voy-03', 'voy-03', 'B01', 'WAITING_FOR_VIGOR_BERTH', 'Waiting for VIGOR Berth B01', 'Anchorage waiting pending Berth B01 clearance by MV VIGOR 01', 'PRIMARY', 'PLANNED', 2, 'CRITICAL', 'Zanzibar Anchorage Outer Roads', DATE_ADD(NOW(), INTERVAL 3 HOUR 45 MINUTE), DATE_ADD(NOW(), INTERVAL 6 HOUR 25 MINUTE), DATE_ADD(NOW(), INTERVAL 3 HOUR 45 MINUTE), DATE_ADD(NOW(), INTERVAL 6 HOUR 25 MINUTE), NULL, NULL, NULL, 160, 0.00, 1, NULL, NULL, 'usr-003'),
+('act-v03-03', 'v-03', 'voy-03', 'voy-03', 'B01', 'VIGOR_BERTHING', 'Berthing at VIGOR B01', 'Mooring alongside VIGOR dedicated pneumatic berth', 'PRIMARY', 'PLANNED', 3, 'HIGH', 'Berth B01 · Zanzibar', DATE_ADD(NOW(), INTERVAL 6 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 7 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 6 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 7 HOUR 30 MINUTE), NULL, NULL, NULL, 60, 0.00, 1, NULL, NULL, 'usr-003'),
+('act-v03-04', 'v-03', 'voy-03', 'voy-03', 'B01', 'VIGOR_UNLOADING', 'Unloading Bulk Cement', 'Direct discharge into VIGOR Silo 1 & 2', 'PRIMARY', 'PLANNED', 4, 'NORMAL', 'Berth B01 · Zanzibar', DATE_ADD(NOW(), INTERVAL 7 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 24 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 7 HOUR 30 MINUTE), DATE_ADD(NOW(), INTERVAL 24 HOUR 30 MINUTE), NULL, NULL, NULL, 1020, 0.00, 1, NULL, NULL, 'usr-003');
+
+-- 11. ACTIVITY DEPENDENCIES
+INSERT INTO `activity_dependencies` (`id`, `activity_id`, `depends_on_activity_id`, `required_status`) VALUES
+-- VIGOR 01 dependencies
+('dep-v01-01', 'act-v01-02', 'act-v01-01', 'COMPLETED'), -- Unloading depends on Berthing
+('dep-v01-02', 'act-v01-03', 'act-v01-02', 'COMPLETED'), -- Fuel depends on Unloading
+('dep-v01-03', 'act-v01-04', 'act-v01-03', 'COMPLETED'), -- Sailing depends on Fuel
+('dep-v01-04', 'act-v01-05', 'act-v01-04', 'COMPLETED'), -- Queue depends on Sailing
+('dep-v01-05', 'act-v01-05', 'act-v01-07', 'COMPLETED'), -- Queue depends on Manufacturer Payment (Support)
+('dep-v01-06', 'act-v01-06', 'act-v01-05', 'COMPLETED'), -- Loading depends on Queue
+
+-- VIGOR 02 dependencies
+('dep-v02-01', 'act-v02-02', 'act-v02-01', 'COMPLETED'), -- Queue depends on Sailing
+('dep-v02-02', 'act-v02-02', 'act-v02-04', 'COMPLETED'), -- Queue depends on Manufacturer Payment (already COMPLETED)
+('dep-v02-03', 'act-v02-03', 'act-v02-02', 'COMPLETED'), -- Loading depends on Queue
+
+-- VIGOR 03 dependencies
+('dep-v03-01', 'act-v03-02', 'act-v03-01', 'COMPLETED'), -- Waiting depends on Sailing arrival
+('dep-v03-02', 'act-v03-03', 'act-v03-02', 'COMPLETED'), -- Berthing depends on Berth clearing
+('dep-v03-03', 'act-v03-04', 'act-v03-03', 'COMPLETED'); -- Unloading depends on Berthing
+
+-- 12. VESSEL ACTIVITY EVENTS (Audit & History)
+INSERT INTO `vessel_activity_events` (`id`, `activity_id`, `vessel_id`, `voyage_id`, `event_type`, `previous_status`, `new_status`, `reason`, `notes`, `performed_by`, `occurred_at`) VALUES
+('evt-01', 'act-v01-01', 'v-01', 'voy-01', 'CREATED', NULL, 'PLANNED', NULL, 'Initial activity plan generated for rotation VY-2025-014', 'usr-003', DATE_SUB(NOW(), INTERVAL 14 HOUR)),
+('evt-02', 'act-v01-01', 'v-01', 'voy-01', 'STARTED', 'READY', 'IN_PROGRESS', NULL, 'Vessel made fast at Berth B01 quay', 'usr-003', DATE_SUB(NOW(), INTERVAL 12 HOUR)),
+('evt-03', 'act-v01-01', 'v-01', 'voy-01', 'COMPLETED', 'IN_PROGRESS', 'COMPLETED', NULL, 'Mooring lines tensioned and shore gangway deployed', 'usr-003', DATE_SUB(NOW(), INTERVAL 10 HOUR)),
+('evt-04', 'act-v01-02', 'v-01', 'voy-01', 'STARTED', 'READY', 'IN_PROGRESS', NULL, 'Pneumatic unloading started. Dual 10-inch lines connected.', 'usr-003', DATE_SUB(NOW(), INTERVAL 10 HOUR)),
+('evt-05', 'act-v01-02', 'v-01', 'voy-01', 'STOPPED', 'IN_PROGRESS', 'STOPPED', 'Pneumatic compressor valve gasket replacement on Silo Manifold B', 'Temporarily isolated line 2 for preventive maintenance', 'usr-003', DATE_SUB(NOW(), INTERVAL 7 HOUR)),
+('evt-06', 'act-v01-02', 'v-01', 'voy-01', 'RESUMED', 'STOPPED', 'IN_PROGRESS', NULL, 'Gasket replaced, pressure test normal. Resumed 605 t/h discharge.', 'usr-003', DATE_SUB(NOW(), INTERVAL 6 HOUR 12 MINUTE)),
+('evt-07', 'act-v01-02', 'v-01', 'voy-01', 'PROGRESS_UPDATED', 'IN_PROGRESS', 'IN_PROGRESS', NULL, 'Discharge progress reached 72% (7,560T / 10,500T)', 'usr-003', NOW()),
+('evt-08', 'act-v02-04', 'v-02', 'voy-02', 'COMPLETED', 'IN_PROGRESS', 'COMPLETED', NULL, '100% advance payment confirmed by CRDB Bank. Tanga queue unblocked.', 'usr-001', DATE_SUB(NOW(), INTERVAL 2 HOUR));

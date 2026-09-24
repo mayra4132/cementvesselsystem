@@ -126,6 +126,10 @@ class DatabaseManager {
   public isUsingMySQL(): boolean {
     return this.lastStatus.connected && this.pool !== null;
   }
+
+  public getPool(): Pool | null {
+    return this.pool;
+  }
 }
 
 export const dbManager = new DatabaseManager();

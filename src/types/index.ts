@@ -370,3 +370,5 @@ export interface WhatIfScenario {
   twoBerthsActive: boolean;
   manufacturerLoadingDelayHours: number;
 }
+
+export * from './activity';

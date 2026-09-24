@@ -3,15 +3,16 @@ import { useAppData } from '../hooks/useAppData';
 import { PageHeader, KpiCard, Modal } from '../components/ui/KpiCard';
 import { StatusBadge, OperationsHealthBadge } from '../components/ui/StatusBadge';
 import { formatTonnage, formatDateTime } from '../lib/format';
-import { Ship, Plus, Search, ArrowRight, Anchor, Navigation } from 'lucide-react';
+import { Ship, Plus, Search, ArrowRight, Anchor, Navigation, ArrowUpRight } from 'lucide-react';
 import { Vessel } from '../types';
+import { ActivityStatusBadge, ExecutionModeBadge } from '../components/activities/ActivityStatusBadge';
 
 interface VesselsProps {
   onSelectVessel: (vesselId: string) => void;
 }
 
 export function Vessels({ onSelectVessel }: VesselsProps) {
-  const { vessels, voyages, api } = useAppData();
+  const { vessels, voyages, activities, api } = useAppData();
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -123,18 +124,32 @@ export function Vessels({ onSelectVessel }: VesselsProps) {
             <thead>
               <tr className="border-b border-[#E1DED4] bg-[#F7F5F0] text-[#3F4A47] font-semibold uppercase tracking-wider text-[11px]">
                 <th className="py-3 px-4">Vessel & Reference</th>
-                <th className="py-3 px-4">IMO / MMSI</th>
                 <th className="py-3 px-4">Capacity</th>
-                <th className="py-3 px-4">Current Cycle</th>
+                <th className="py-3 px-4">Current Activity</th>
+                <th className="py-3 px-4">Next Activity</th>
                 <th className="py-3 px-4">Stage</th>
                 <th className="py-3 px-4">Health</th>
-                <th className="py-3 px-4">Berth / ETA</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E1DED4]">
               {filteredVessels.map((vessel) => {
                 const voyage = voyages.find((v) => v.vesselId === vessel.id && v.status === 'ACTIVE');
+                const vActs = (activities || [])
+                  .filter((a) => a.vesselId === vessel.id)
+                  .sort((a, b) => a.sequenceNo - b.sequenceNo);
+
+                const currentAct =
+                  vActs.find(
+                    (a) => a.executionMode === 'PRIMARY' && (a.status === 'IN_PROGRESS' || a.status === 'STOPPED')
+                  ) || vActs.find((a) => a.status === 'IN_PROGRESS');
+
+                const nextAct = vActs.find((a) => {
+                  if (a.id === currentAct?.id) return false;
+                  if (a.status === 'COMPLETED' || a.status === 'CANCELLED' || a.status === 'SKIPPED') return false;
+                  if (currentAct && a.sequenceNo <= currentAct.sequenceNo) return false;
+                  return a.executionMode === 'PRIMARY' && (a.status === 'READY' || a.status === 'PLANNED' || a.status === 'BLOCKED');
+                });
 
                 return (
                   <tr
@@ -147,27 +162,40 @@ export function Vessels({ onSelectVessel }: VesselsProps) {
                         <Ship className="w-4 h-4 text-[#0C9349]" />
                         <div>
                           <div className="font-bold text-[#14181A]">{vessel.name}</div>
-                          <div className="text-[10px] font-mono text-[#3F4A47]">{vessel.reference}</div>
+                          <div className="text-[10px] font-mono text-[#3F4A47]">{vessel.reference} · IMO {vessel.imo || 'N/A'}</div>
                         </div>
                       </div>
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[#3F4A47]">
-                      <div>IMO {vessel.imo || 'N/A'}</div>
-                      <div className="text-[10px]">MMSI {vessel.mmsi || 'N/A'}</div>
                     </td>
                     <td className="py-3 px-4 font-mono font-semibold text-[#14181A]">
                       {formatTonnage(vessel.capacityT)}
                     </td>
-                    <td className="py-3 px-4 font-mono text-[#3F4A47]">
-                      {voyage ? (
-                        <div>
-                          <span className="font-bold text-[#14181A]">{voyage.voyageNumber}</span>
-                          <div className="text-[10px] truncate max-w-[140px]">
-                            {voyage.origin} → {voyage.destination}
+                    <td className="py-3 px-4">
+                      {currentAct ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-[#14181A] text-xs">{currentAct.title}</span>
+                            {currentAct.progressPct !== undefined && currentAct.status === 'IN_PROGRESS' && (
+                              <span className="font-mono text-[10px] font-bold text-[#0C9349]">
+                                ({currentAct.progressPct}%)
+                              </span>
+                            )}
                           </div>
+                          <ActivityStatusBadge status={currentAct.status} />
                         </div>
                       ) : (
-                        'No active cycle'
+                        <span className="text-[#7A8784] italic text-[11px]">No active task</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {nextAct ? (
+                        <div className="space-y-1">
+                          <div className="text-xs font-medium text-[#14181A] truncate max-w-[160px]">
+                            {nextAct.title}
+                          </div>
+                          <ActivityStatusBadge status={nextAct.status} />
+                        </div>
+                      ) : (
+                        <span className="text-[#7A8784] text-[11px]">—</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
@@ -176,23 +204,9 @@ export function Vessels({ onSelectVessel }: VesselsProps) {
                     <td className="py-3 px-4">
                       {voyage ? <OperationsHealthBadge health={voyage.health} /> : '-'}
                     </td>
-                    <td className="py-3 px-4 font-mono text-[#3F4A47]">
-                      {voyage ? (
-                        <div>
-                          <span className="font-bold text-[#14181A]">
-                            {voyage.assignedBerthId || 'Berth B01'}
-                          </span>
-                          <div className="text-[10px] text-[#0E7C86]">
-                            ETA: {formatDateTime(voyage.returnEtaForecast)}
-                          </div>
-                        </div>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
                     <td className="py-3 px-4 text-right">
                       <span className="inline-flex items-center gap-1 text-[#0A7A3D] font-semibold hover:underline">
-                        Details <ArrowRight className="w-3.5 h-3.5" />
+                        Workflow <ArrowRight className="w-3.5 h-3.5" />
                       </span>
                     </td>
                   </tr>

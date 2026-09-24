@@ -17,6 +17,10 @@ import {
   Alert,
   SystemSettings,
   WhatIfScenario,
+  VesselActivity,
+  ActivityStatus,
+  ActivityExecutionMode,
+  ActivityConflictResolution,
 } from '../types';
 import { getInitialDemoData } from '../mock/mockData';
 import { recalculateVoyageDependencies, calculateUnloadingForecast } from '../lib/scheduleEngine';
@@ -186,6 +190,7 @@ export interface AppStore {
   operationalReadings: OperationalReading[];
   delayEvents: DelayEvent[];
   systemSettings: SystemSettings;
+  activities: VesselActivity[];
   activeScenario?: WhatIfScenario;
   connectionInfo: ConnectionInfo;
 }
@@ -202,6 +207,7 @@ export type PersistedOperationalState = Pick<
   | 'operationalReadings'
   | 'delayEvents'
   | 'systemSettings'
+  | 'activities'
 >;
 
 export interface BackendOperationalStateEnvelope {
@@ -254,8 +260,11 @@ class ApiClient {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.vessels && parsed.voyages && parsed.berths) {
+          const baseline = getInitialDemoData();
           return {
+            ...baseline,
             ...parsed,
+            activities: parsed.activities && parsed.activities.length > 0 ? parsed.activities : baseline.activities,
             connectionInfo: {
               ...defaultConnection,
               ...(parsed.connectionInfo || {}),
@@ -298,6 +307,7 @@ class ApiClient {
       operationalReadings,
       delayEvents,
       systemSettings,
+      activities,
     } = this.store;
     return {
       vessels,
@@ -310,6 +320,7 @@ class ApiClient {
       operationalReadings,
       delayEvents,
       systemSettings,
+      activities,
     };
   }
 
@@ -1017,6 +1028,361 @@ class ApiClient {
         this.saveToStorage();
       }
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Activity Engine Methods
+  // -------------------------------------------------------------------------
+
+  public getActivities(vesselId?: string): VesselActivity[] {
+    if (!this.store.activities) {
+      this.store.activities = getInitialDemoData().activities;
+    }
+    if (vesselId) {
+      return this.store.activities
+        .filter((a) => a.vesselId === vesselId)
+        .sort((a, b) => a.sequenceNo - b.sequenceNo);
+    }
+    return [...this.store.activities].sort((a, b) => a.sequenceNo - b.sequenceNo);
+  }
+
+  public async startActivity(
+    activityId: string,
+    options?: {
+      startedAt?: string;
+      resolution?: ActivityConflictResolution;
+      overrideDependencyReason?: string;
+    }
+  ): Promise<{ activity: VesselActivity; conflict?: { currentActivity: VesselActivity; message: string } }> {
+    const act = this.store.activities.find((a) => a.id === activityId);
+    if (!act) throw new Error(`Activity ${activityId} not found`);
+
+    const now = options?.startedAt || new Date().toISOString();
+
+    // Check concurrency for primary
+    if (act.executionMode === 'PRIMARY') {
+      const activePrimary = this.store.activities.find(
+        (a) => a.vesselId === act.vesselId && a.id !== act.id && a.executionMode === 'PRIMARY' && a.status === 'IN_PROGRESS'
+      );
+      if (activePrimary) {
+        if (!options?.resolution || options.resolution.action === 'NONE') {
+          return {
+            activity: act,
+            conflict: {
+              currentActivity: activePrimary,
+              message: `Vessel already has primary activity in progress: ${activePrimary.title}`,
+            },
+          };
+        }
+        if (options.resolution.action === 'COMPLETE') {
+          await this.completeActivity(activePrimary.id, {
+            actualEnd: now,
+            completionNotes: `Auto-completed to start ${act.title}`,
+          });
+        } else if (options.resolution.action === 'STOP') {
+          await this.stopActivity(activePrimary.id, options.resolution.reason || `Stopped for ${act.title}`);
+        } else if (options.resolution.action === 'CANCEL') {
+          await this.cancelActivity(activePrimary.id, options.resolution.reason || `Cancelled for ${act.title}`);
+        }
+      }
+    }
+
+    act.status = 'IN_PROGRESS';
+    act.actualStart = act.actualStart || now;
+    act.stoppedAt = undefined;
+    act.stopReason = undefined;
+    act.updatedAt = now;
+
+    // Sync voyage currentStage
+    const voyage = this.store.voyages.find((v) => v.id === act.voyageId || v.vesselId === act.vesselId);
+    if (voyage) {
+      if (act.activityType === 'VIGOR_UNLOADING') voyage.currentStage = 'UNLOADING';
+      else if (act.activityType === 'VIGOR_BERTHING') voyage.currentStage = 'BERTHED_AT_VIGOR';
+      else if (act.activityType === 'FUEL') voyage.currentStage = 'FUEL_IN_PROGRESS';
+      else if (act.activityType === 'OUTBOUND_VOYAGE') voyage.currentStage = 'SAILING_TO_MANUFACTURER';
+      else if (act.activityType === 'MANUFACTURER_QUEUE') voyage.currentStage = 'WAITING_AT_MANUFACTURER';
+      else if (act.activityType === 'MANUFACTURER_LOADING') voyage.currentStage = 'LOADING';
+      else if (act.activityType === 'RETURN_VOYAGE') voyage.currentStage = 'RETURNING_TO_VIGOR';
+    }
+
+    this.recalculateAll();
+    this.saveToStorage();
+
+    // Call backend endpoint if available
+    try {
+      await apiFetch(`/activities/${activityId}/start`, {
+        method: 'POST',
+        body: JSON.stringify({
+          started_at: now,
+          current_activity_resolution: options?.resolution,
+          override_dependency_reason: options?.overrideDependencyReason,
+        }),
+      });
+    } catch {}
+
+    return { activity: act };
+  }
+
+  public async stopActivity(activityId: string, reason: string, notes?: string): Promise<VesselActivity> {
+    const act = this.store.activities.find((a) => a.id === activityId);
+    if (!act) throw new Error(`Activity ${activityId} not found`);
+
+    const now = new Date().toISOString();
+    act.status = 'STOPPED';
+    act.stoppedAt = now;
+    act.stopReason = reason;
+    act.updatedAt = now;
+
+    this.recalculateAll();
+    this.saveToStorage();
+
+    try {
+      await apiFetch(`/activities/${activityId}/stop`, {
+        method: 'POST',
+        body: JSON.stringify({ reason, notes }),
+      });
+    } catch {}
+
+    return act;
+  }
+
+  public async resumeActivity(activityId: string, notes?: string): Promise<VesselActivity> {
+    const act = this.store.activities.find((a) => a.id === activityId);
+    if (!act) throw new Error(`Activity ${activityId} not found`);
+
+    const now = new Date().toISOString();
+    act.status = 'IN_PROGRESS';
+    act.stoppedAt = undefined;
+    act.stopReason = undefined;
+    act.updatedAt = now;
+
+    this.recalculateAll();
+    this.saveToStorage();
+
+    try {
+      await apiFetch(`/activities/${activityId}/resume`, {
+        method: 'POST',
+        body: JSON.stringify({ notes }),
+      });
+    } catch {}
+
+    return act;
+  }
+
+  public async completeActivity(
+    activityId: string,
+    options?: { actualEnd?: string; completionNotes?: string }
+  ): Promise<{ activity: VesselActivity; nextReadyActivities?: VesselActivity[] }> {
+    const act = this.store.activities.find((a) => a.id === activityId);
+    if (!act) throw new Error(`Activity ${activityId} not found`);
+
+    const now = options?.actualEnd || new Date().toISOString();
+    act.status = 'COMPLETED';
+    act.actualEnd = now;
+    act.progressPct = 100;
+    act.completionNotes = options?.completionNotes;
+    act.stoppedAt = undefined;
+    act.stopReason = undefined;
+    act.updatedAt = now;
+
+    // Evaluate downstream dependencies in memory
+    for (const other of this.store.activities) {
+      if (other.vesselId === act.vesselId && other.dependencies) {
+        const allCompleted = other.dependencies.every((dep) => {
+          const p = this.store.activities.find((a) => a.id === dep.dependsOnActivityId);
+          return p && (p.status === 'COMPLETED' || p.status === 'SKIPPED');
+        });
+        if (allCompleted && (other.status === 'PLANNED' || other.status === 'BLOCKED')) {
+          other.status = 'READY';
+          other.blockerReason = undefined;
+        }
+      }
+    }
+
+    this.recalculateAll();
+    this.saveToStorage();
+
+    try {
+      await apiFetch(`/activities/${activityId}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({
+          actual_end: now,
+          completion_notes: options?.completionNotes,
+        }),
+      });
+    } catch {}
+
+    return { activity: act };
+  }
+
+  public async cancelActivity(activityId: string, reason: string, notes?: string): Promise<VesselActivity> {
+    const act = this.store.activities.find((a) => a.id === activityId);
+    if (!act) throw new Error(`Activity ${activityId} not found`);
+
+    act.status = 'CANCELLED';
+    act.cancellationReason = reason;
+    act.updatedAt = new Date().toISOString();
+
+    this.recalculateAll();
+    this.saveToStorage();
+
+    try {
+      await apiFetch(`/activities/${activityId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ cancellation_reason: reason, reason, notes }),
+      });
+    } catch {}
+
+    return act;
+  }
+
+  public async skipActivity(activityId: string, reason: string, notes?: string): Promise<VesselActivity> {
+    const act = this.store.activities.find((a) => a.id === activityId);
+    if (!act) throw new Error(`Activity ${activityId} not found`);
+
+    act.status = 'SKIPPED';
+    act.stopReason = reason;
+    act.updatedAt = new Date().toISOString();
+
+    this.recalculateAll();
+    this.saveToStorage();
+
+    try {
+      await apiFetch(`/activities/${activityId}/skip`, {
+        method: 'POST',
+        body: JSON.stringify({ reason, notes }),
+      });
+    } catch {}
+
+    return act;
+  }
+
+  public async overrideActivityDependency(activityId: string, reason: string, notes?: string): Promise<VesselActivity> {
+    const act = this.store.activities.find((a) => a.id === activityId);
+    if (!act) throw new Error(`Activity ${activityId} not found`);
+
+    act.status = 'READY';
+    act.blockerReason = undefined;
+    act.updatedAt = new Date().toISOString();
+
+    this.recalculateAll();
+    this.saveToStorage();
+
+    try {
+      await apiFetch(`/activities/${activityId}/override-dependency`, {
+        method: 'POST',
+        body: JSON.stringify({ reason, notes }),
+      });
+    } catch {}
+
+    return act;
+  }
+
+  public async completeAndStartNextActivity(
+    currentActivityId: string,
+    completionNotes?: string
+  ): Promise<{ completedActivity: VesselActivity; nextStartedActivity?: VesselActivity }> {
+    const current = this.store.activities.find((a) => a.id === currentActivityId);
+    if (!current) throw new Error(`Activity ${currentActivityId} not found`);
+
+    const { activity: completed } = await this.completeActivity(currentActivityId, { completionNotes });
+
+    const nextPrimary = this.store.activities
+      .filter((a) => a.vesselId === current.vesselId && a.id !== current.id && a.executionMode === 'PRIMARY')
+      .filter((a) => a.status === 'READY' || (a.status === 'PLANNED' && a.sequenceNo > current.sequenceNo))
+      .sort((a, b) => a.sequenceNo - b.sequenceNo)[0];
+
+    let nextStarted: VesselActivity | undefined = undefined;
+    if (nextPrimary) {
+      const res = await this.startActivity(nextPrimary.id, { startedAt: new Date().toISOString() });
+      nextStarted = res.activity;
+    }
+
+    return { completedActivity: completed, nextStartedActivity: nextStarted };
+  }
+
+  public async moveActivity(activityId: string, direction: 'UP' | 'DOWN'): Promise<VesselActivity[]> {
+    const act = this.store.activities.find((a) => a.id === activityId);
+    if (!act) return this.store.activities;
+
+    const vesselActs = this.store.activities
+      .filter((a) => a.vesselId === act.vesselId && a.status !== 'COMPLETED')
+      .sort((a, b) => a.sequenceNo - b.sequenceNo);
+
+    const idx = vesselActs.findIndex((a) => a.id === act.id);
+    if (direction === 'UP' && idx > 0) {
+      const swap = vesselActs[idx - 1];
+      const tmp = act.sequenceNo;
+      act.sequenceNo = swap.sequenceNo;
+      swap.sequenceNo = tmp;
+    } else if (direction === 'DOWN' && idx < vesselActs.length - 1) {
+      const swap = vesselActs[idx + 1];
+      const tmp = act.sequenceNo;
+      act.sequenceNo = swap.sequenceNo;
+      swap.sequenceNo = tmp;
+    }
+
+    this.recalculateAll();
+    this.saveToStorage();
+
+    try {
+      await apiFetch(`/activities/${activityId}/move`, {
+        method: 'POST',
+        body: JSON.stringify({ direction }),
+      });
+    } catch {}
+
+    return this.getActivities(act.vesselId);
+  }
+
+  public async addActivity(activity: Partial<VesselActivity>): Promise<VesselActivity> {
+    const id = activity.id || `act-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const now = new Date().toISOString();
+
+    const existing = this.store.activities.filter((a) => a.vesselId === activity.vesselId);
+    const maxSeq = existing.reduce((max, a) => Math.max(max, a.sequenceNo), 0);
+
+    const newAct: VesselActivity = {
+      id,
+      vesselId: activity.vesselId!,
+      voyageId: activity.voyageId,
+      visitId: activity.visitId,
+      berthId: activity.berthId,
+      activityType: activity.activityType || 'CUSTOM',
+      title: activity.title || 'Operational Activity',
+      description: activity.description,
+      executionMode: activity.executionMode || 'PRIMARY',
+      status: activity.status || 'PLANNED',
+      sequenceNo: activity.sequenceNo !== undefined ? activity.sequenceNo : maxSeq + 1,
+      priority: activity.priority || 'NORMAL',
+      location: activity.location,
+      plannedStart: activity.plannedStart || now,
+      plannedEnd: activity.plannedEnd,
+      forecastStart: activity.forecastStart || activity.plannedStart || now,
+      forecastEnd: activity.forecastEnd || activity.plannedEnd,
+      estimatedDurationMinutes: activity.estimatedDurationMinutes || 120,
+      progressPct: 0,
+      blocksNext: activity.blocksNext !== undefined ? activity.blocksNext : true,
+      linkedEntityType: activity.linkedEntityType,
+      linkedEntityId: activity.linkedEntityId,
+      createdBy: 'Operations Dispatcher',
+      createdAt: now,
+      updatedAt: now,
+      dependencies: activity.dependencies || [],
+    };
+
+    this.store.activities.push(newAct);
+    this.recalculateAll();
+    this.saveToStorage();
+
+    try {
+      await apiFetch('/activities', {
+        method: 'POST',
+        body: JSON.stringify(newAct),
+      });
+    } catch {}
+
+    return newAct;
   }
 }
 

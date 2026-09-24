@@ -50,6 +50,7 @@ export function Dashboard({
     paymentTransactions,
     fuelOperations,
     alerts,
+    activities,
   } = useAppData();
 
   // Greeting based on time
@@ -208,9 +209,14 @@ export function Dashboard({
               className="p-3 bg-[#F7F5F0] rounded-lg border border-[#E1DED4] flex items-start justify-between gap-4 cursor-pointer hover:border-[#3F4A47] transition"
             >
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold text-[#14181A]">MV VIGOR 01</span>
                   <StatusBadge stage="UNLOADING" />
+                  {activities?.find((a) => a.vesselId === 'v-01' && (a.status === 'IN_PROGRESS' || a.status === 'STOPPED')) && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#E8F5E9] text-[#0C9349] border border-[#A5D6A7]">
+                      Task: {activities.find((a) => a.vesselId === 'v-01' && (a.status === 'IN_PROGRESS' || a.status === 'STOPPED'))?.title}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-[#3F4A47]">
                   Discharging cement at Berth B01 (72% complete, rate 605 t/h). Forecast unload completion at{' '}
@@ -229,9 +235,14 @@ export function Dashboard({
               className="p-3 bg-[#F7F5F0] rounded-lg border border-[#E1DED4] flex items-start justify-between gap-4 cursor-pointer hover:border-[#3F4A47] transition"
             >
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold text-[#14181A]">MV VIGOR 02</span>
                   <StatusBadge stage="SAILING_TO_MANUFACTURER" />
+                  {activities?.find((a) => a.vesselId === 'v-02' && (a.status === 'IN_PROGRESS' || a.status === 'STOPPED')) && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#E8F5E9] text-[#0C9349] border border-[#A5D6A7]">
+                      Task: {activities.find((a) => a.vesselId === 'v-02' && (a.status === 'IN_PROGRESS' || a.status === 'STOPPED'))?.title}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-[#3F4A47]">
                   Cruising northward in Pemba Channel at 10.8 knots. ETA Tanga Cement Wharf tomorrow{' '}
@@ -250,12 +261,17 @@ export function Dashboard({
               className="p-3 bg-[#F8E7E3]/60 rounded-lg border border-[#AE3B2E]/30 flex items-start justify-between gap-4 cursor-pointer hover:border-[#AE3B2E] transition"
             >
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold text-[#14181A]">MV VIGOR 03</span>
                   <StatusBadge stage="RETURNING_TO_VIGOR" />
                   <span className="text-[10px] font-bold text-[#AE3B2E] bg-white px-1.5 py-0.5 rounded border border-[#AE3B2E]/30">
                     BERTH CONFLICT
                   </span>
+                  {activities?.find((a) => a.vesselId === 'v-03' && (a.status === 'IN_PROGRESS' || a.status === 'STOPPED')) && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#E8F5E9] text-[#0C9349] border border-[#A5D6A7]">
+                      Task: {activities.find((a) => a.vesselId === 'v-03' && (a.status === 'IN_PROGRESS' || a.status === 'STOPPED'))?.title}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-[#14181A]">
                   Laden with 9,400T bulk cement. Forecast return ETA{' '}

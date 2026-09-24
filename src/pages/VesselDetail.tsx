@@ -21,6 +21,7 @@ import {
   formatHoursAndMinutes,
 } from '../lib/format';
 import { calculatePaymentAccountTotals } from '../lib/paymentEngine';
+import { VesselActivitySection } from '../components/activities/VesselActivitySection';
 import {
   Ship,
   ArrowLeft,
@@ -252,6 +253,12 @@ export function VesselDetail({
 
       {/* Full Vessel Cycle Timeline */}
       {voyage && <VesselCycleTimeline voyage={voyage} />}
+
+      {/* Operational Activity Workflow Engine */}
+      <VesselActivitySection
+        vesselId={vesselId}
+        vesselName={vessel?.name || 'Vessel'}
+      />
 
       {/* 2-Column Core Operational Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

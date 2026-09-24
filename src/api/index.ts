@@ -13,3 +13,4 @@ export * from './fuelApi';
 export * from './paymentApi';
 export * from './manufacturerApi';
 export * from './voyageApi';
+export * from './activityApi';

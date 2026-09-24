@@ -22,6 +22,7 @@ import {
   validateCompanyDomain,
   UserRole,
 } from './server/auth';
+import { activityService } from './server/services/activityService';
 
 const app = express();
 const PORT = 3000;
@@ -821,6 +822,285 @@ apiRouter.post('/visits/:id/delays', (req: Request, res: Response) => {
 // 9. Upcoming Calls
 apiRouter.get('/upcoming-calls', (req: Request, res: Response) => {
   res.json(upcomingCalls);
+});
+
+// ---------------------------------------------------------------------------
+// 9b. Vessel Activities Engine Endpoints
+// ---------------------------------------------------------------------------
+
+// Helper to check write permissions
+function canEditActivities(req: Request): boolean {
+  const user = (req as any).user;
+  if (!user) return true; // Default allow in demo mode
+  return user.role === 'Admin' || user.role === 'Operations' || user.role === 'Management';
+}
+
+function canOverrideDependency(req: Request): boolean {
+  const user = (req as any).user;
+  if (!user) return true;
+  return user.role === 'Admin' || user.role === 'Operations';
+}
+
+// GET /activities
+apiRouter.get('/activities', async (req: Request, res: Response) => {
+  try {
+    const { vessel_id, voyage_id, status, execution_mode, activity_type } = req.query;
+    const activities = await activityService.getActivities({
+      vesselId: vessel_id as string,
+      voyageId: voyage_id as string,
+      status: status as any,
+      executionMode: execution_mode as any,
+      activityType: activity_type as string,
+    });
+    res.json(activities);
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities
+apiRouter.post('/activities', async (req: Request, res: Response) => {
+  if (!canEditActivities(req)) {
+    res.status(403).json({ error: 'Permission denied: Viewers cannot create activities.' });
+    return;
+  }
+  try {
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+    const created = await activityService.createActivity(req.body, userEmail);
+    res.status(201).json(created);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// GET /activities/:id
+apiRouter.get('/activities/:id', async (req: Request, res: Response) => {
+  try {
+    const act = await activityService.getActivityById(req.params.id);
+    if (!act) {
+      res.status(404).json({ error: `Activity ${req.params.id} not found.` });
+      return;
+    }
+    res.json(act);
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// GET /vessels/:vesselId/activities
+apiRouter.get('/vessels/:vesselId/activities', async (req: Request, res: Response) => {
+  try {
+    const list = await activityService.getVesselActivities(req.params.vesselId);
+    res.json(list);
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// GET /voyages/:voyageId/activities
+apiRouter.get('/voyages/:voyageId/activities', async (req: Request, res: Response) => {
+  try {
+    const list = await activityService.getVoyageActivities(req.params.voyageId);
+    res.json(list);
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities/:id/start
+apiRouter.post('/activities/:id/start', async (req: Request, res: Response) => {
+  if (!canEditActivities(req)) {
+    res.status(403).json({ error: 'Permission denied.' });
+    return;
+  }
+  try {
+    const { started_at, current_activity_resolution, override_dependency_reason } = req.body;
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+
+    const result = await activityService.startActivity(
+      req.params.id,
+      {
+        startedAt: started_at,
+        resolution: current_activity_resolution,
+        overrideDependencyReason: override_dependency_reason,
+      },
+      userEmail
+    );
+
+    if (result.conflict) {
+      res.status(409).json({
+        conflict: result.conflict,
+        activity: result.activity,
+        message: result.conflict.message,
+      });
+      return;
+    }
+
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities/:id/stop
+apiRouter.post('/activities/:id/stop', async (req: Request, res: Response) => {
+  if (!canEditActivities(req)) {
+    res.status(403).json({ error: 'Permission denied.' });
+    return;
+  }
+  try {
+    const { reason, notes } = req.body;
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: 'Stop reason is required.' });
+      return;
+    }
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+    const stopped = await activityService.stopActivity(req.params.id, { reason, notes }, userEmail);
+    res.json(stopped);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities/:id/resume
+apiRouter.post('/activities/:id/resume', async (req: Request, res: Response) => {
+  if (!canEditActivities(req)) {
+    res.status(403).json({ error: 'Permission denied.' });
+    return;
+  }
+  try {
+    const { notes } = req.body;
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+    const resumed = await activityService.resumeActivity(req.params.id, { notes }, userEmail);
+    res.json(resumed);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities/:id/complete
+apiRouter.post('/activities/:id/complete', async (req: Request, res: Response) => {
+  if (!canEditActivities(req)) {
+    res.status(403).json({ error: 'Permission denied.' });
+    return;
+  }
+  try {
+    const { actual_end, completion_notes } = req.body;
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+    const result = await activityService.completeActivity(
+      req.params.id,
+      { actualEnd: actual_end, completionNotes: completion_notes },
+      userEmail
+    );
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities/:id/cancel
+apiRouter.post('/activities/:id/cancel', async (req: Request, res: Response) => {
+  if (!canEditActivities(req)) {
+    res.status(403).json({ error: 'Permission denied.' });
+    return;
+  }
+  try {
+    const { cancellation_reason, reason, notes } = req.body;
+    const actualReason = cancellation_reason || reason;
+    if (!actualReason || !actualReason.trim()) {
+      res.status(400).json({ error: 'Cancellation reason is required.' });
+      return;
+    }
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+    const cancelled = await activityService.cancelActivity(req.params.id, { reason: actualReason, notes }, userEmail);
+    res.json(cancelled);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities/:id/skip
+apiRouter.post('/activities/:id/skip', async (req: Request, res: Response) => {
+  if (!canEditActivities(req)) {
+    res.status(403).json({ error: 'Permission denied.' });
+    return;
+  }
+  try {
+    const { reason, notes } = req.body;
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: 'Skip reason is required.' });
+      return;
+    }
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+    const skipped = await activityService.skipActivity(req.params.id, { reason, notes }, userEmail);
+    res.json(skipped);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities/:id/override-dependency
+apiRouter.post('/activities/:id/override-dependency', async (req: Request, res: Response) => {
+  if (!canOverrideDependency(req)) {
+    res.status(403).json({ error: 'Permission denied: Only Admin or Operations may override dependencies.' });
+    return;
+  }
+  try {
+    const { reason, notes } = req.body;
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: 'Override reason is strictly required.' });
+      return;
+    }
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+    const result = await activityService.startActivity(
+      req.params.id,
+      { overrideDependencyReason: reason },
+      userEmail
+    );
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities/:id/move
+apiRouter.post('/activities/:id/move', async (req: Request, res: Response) => {
+  if (!canEditActivities(req)) {
+    res.status(403).json({ error: 'Permission denied.' });
+    return;
+  }
+  try {
+    const { direction } = req.body;
+    if (direction !== 'UP' && direction !== 'DOWN') {
+      res.status(400).json({ error: 'Direction must be UP or DOWN.' });
+      return;
+    }
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+    const updatedList = await activityService.moveActivity(req.params.id, direction, userEmail);
+    res.json(updatedList);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// POST /activities/:id/complete-and-start-next
+apiRouter.post('/activities/:id/complete-and-start-next', async (req: Request, res: Response) => {
+  if (!canEditActivities(req)) {
+    res.status(403).json({ error: 'Permission denied.' });
+    return;
+  }
+  try {
+    const { completion_notes } = req.body;
+    const userEmail = (req as any).user?.email || 'ops.dispatcher@turkysgroup.co.tz';
+    const result = await activityService.completeAndStartNext(
+      req.params.id,
+      { completionNotes: completion_notes },
+      userEmail
+    );
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 // 10. AI Assistant Endpoint (NLP + Vector Retrieval + Grounded Gemini Model)
